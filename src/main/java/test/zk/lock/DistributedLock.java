@@ -65,20 +65,25 @@ public class DistributedLock {
         if (tryLock(true)) {
             return;
         }
-        try {
-            CountDownLatch countDownLatch = new CountDownLatch(1);
-            zk.addWatch(lastNode.get(), new Watcher() {
-                @Override
-                public void process(WatchedEvent watchedEvent) {
-                    countDownLatch.countDown();
+        while(true) {
+            try {
+                CountDownLatch countDownLatch = new CountDownLatch(1);
+                zk.addWatch(lastNode.get(), new Watcher() {
+                    @Override
+                    public void process(WatchedEvent watchedEvent) {
+                        countDownLatch.countDown();
+                    }
+                }, AddWatchMode.PERSISTENT);
+                if (tryLock(true)) {
+                    return;
                 }
-            }, AddWatchMode.PERSISTENT);
-            if (tryLock(true)) {
-                return;
+                countDownLatch.await();
+                if (tryLock(true)) {
+                    return;
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-            countDownLatch.await();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
     }
 
